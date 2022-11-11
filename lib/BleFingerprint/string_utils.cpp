@@ -133,6 +133,12 @@ bool prefixExists(const String &prefixes, const String &s)
     return !sub.isEmpty() && s.indexOf(sub) == 0;
 }
 
+/**
+ * @brief Write content to file.
+ * @param [&fn] The file path.
+ * @param [&content] Content to be written.
+ * @return Whether the write was succsesfull.
+ */
 bool spurt(const String &fn, const String &content)
 {
     File f = SPIFFS.open(fn, "w");

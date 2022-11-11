@@ -150,7 +150,7 @@ void configureOTA(void) {
 
 bool setup = false;
 void Setup() {
-    auto uf = SPIFFS.exists("/update");
+    auto uf = SPIFFS.exists("/update"); // is folder in fs
     if (uf) firmwareUpdate();
 }
 

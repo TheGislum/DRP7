@@ -3,7 +3,7 @@
 #include <sstream>
 #include <Arduino.h>
 
-namespace BleFingerprintCollection {
+namespace BleFingerprintCollection { // 
 // Public (externed)
 String include{}, exclude{}, query{}, knownMacs{}, knownIrks{}, countIds{};
 float skipDistance = 0.0f, maxDistance = 0.0f, absorption = 3.5f, countEnter = 2, countExit = 4;
@@ -25,11 +25,11 @@ unsigned long lastCleanup = 0;
 SemaphoreHandle_t fingerprintSemaphore;
 
 void Setup() {
-    fingerprintSemaphore = xSemaphoreCreateBinary();
-    xSemaphoreGive(fingerprintSemaphore);
+    fingerprintSemaphore = xSemaphoreCreateBinary(); // allocate memory and create Semaphore
+    xSemaphoreGive(fingerprintSemaphore); // Release Semaphore
 }
 
-void Count(BleFingerprint *f, bool counting) {
+void Count(BleFingerprint *f, bool counting) { // count number of ble devices?
     if (counting) {
         if (onCountAdd) onCountAdd(f);
     } else {
@@ -119,7 +119,7 @@ void ConnectToWifi() {
     }
 }
 
-bool Command(String &command, String &pay) {
+bool Command(String &command, String &pay) { // save command settings to SPIFFS
     if (command == "max_distance") {
         maxDistance = pay.toFloat();
         spurt("/max_dist", pay);
@@ -177,12 +177,13 @@ void CleanupOldFingerprints() {
 
 BleFingerprint *getFingerprintInternal(BLEAdvertisedDevice *advertisedDevice) {
     auto mac = advertisedDevice->getAddress();
-
+    // if macaddress is in list return device
     auto it = std::find_if(fingerprints.rbegin(), fingerprints.rend(), [mac](BleFingerprint *f) { return f->getAddress() == mac; });
     if (it != fingerprints.rend())
         return *it;
 
     auto created = new BleFingerprint(advertisedDevice, ONE_EURO_FCMIN, ONE_EURO_BETA, ONE_EURO_DCUTOFF);
+    // is id in list, if so remove entry if macadress has changed
     auto it2 = std::find_if(fingerprints.begin(), fingerprints.end(), [created](BleFingerprint *f) { return f->getId() == created->getId(); });
     if (it2 != fingerprints.end()) {
         auto found = *it2;
@@ -192,7 +193,7 @@ BleFingerprint *getFingerprintInternal(BLEAdvertisedDevice *advertisedDevice) {
             found->expire();
     }
 
-    fingerprints.push_back(created);
+    fingerprints.push_back(created); // add new device to list
     return created;
 }
 
@@ -208,7 +209,7 @@ BleFingerprint *GetFingerprint(BLEAdvertisedDevice *advertisedDevice) {
 const std::vector<BleFingerprint *> GetCopy() {
     if (xSemaphoreTake(fingerprintSemaphore, 1000) != pdTRUE)
         log_e("Couldn't take semaphore!");
-    CleanupOldFingerprints();
+    CleanupOldFingerprints(); // remove fingerprints last seen more than (forgetMs) ms ago
     std::vector<BleFingerprint *> copy(fingerprints);
     if (xSemaphoreGive(fingerprintSemaphore) != pdTRUE)
         log_e("Couldn't give semaphore!");

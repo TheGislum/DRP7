@@ -564,7 +564,7 @@ bool BleFingerprint::report(JsonObject *doc)
     lastReportedMillis = now;
     lastReported = output.value.position;
     reported = true;
-    fill(doc);
+    fill(doc); // fill json object with relevent fingerprint information
     return true;
 }
 

@@ -13,9 +13,9 @@ bool sendTelemetry(unsigned int totalSeen, unsigned int totalFpSeen, int unsigne
             && pub((roomsTopic + "/known_macs").c_str(), 0, true, BleFingerprintCollection::knownMacs.c_str())
             && pub((roomsTopic + "/known_irks").c_str(), 0, true, BleFingerprintCollection::knownIrks.c_str())
             && pub((roomsTopic + "/count_ids").c_str(), 0, true, BleFingerprintCollection::countIds.c_str())
-            && Updater::SendOnline()
-            && Motion::SendOnline()
-            && GUI::SendOnline()
+            && Updater::SendOnline() // publish ota enabeld status (not needed) (nice to have)
+            && Motion::SendOnline() // publish pir/radar timeout (not needed)
+            && GUI::SendOnline() // publish led state (not needed)
         ) {
             online = true;
             reconnectTries = 0;
@@ -23,7 +23,7 @@ bool sendTelemetry(unsigned int totalSeen, unsigned int totalFpSeen, int unsigne
             Serial.println("Error sending status=online");
         }
     }
-
+    // homeassistant discovery via mqtt (not needed)
     if (discovery && !sentDiscovery) {
         if (sendConnectivityDiscovery()
             && sendTeleSensorDiscovery("Uptime", EC_DIAGNOSTIC, "{{ value_json.uptime }}", DEVICE_CLASS_NONE, "s")
@@ -68,7 +68,7 @@ bool sendTelemetry(unsigned int totalSeen, unsigned int totalFpSeen, int unsigne
 
     doc.clear();
     doc["ip"] = localIp;
-    doc["uptime"] = esp_timer_get_time() / 1000000;
+    doc["uptime"] = esp_timer_get_time() / 1000000; // in seconds
 #ifdef FIRMWARE
     doc["firm"] = String(FIRMWARE);
 #endif
@@ -114,11 +114,11 @@ bool sendTelemetry(unsigned int totalSeen, unsigned int totalFpSeen, int unsigne
 void setupNetwork() {
     Serial.println("Setup network");
     WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
-    GUI::Connected(false, false);
+    GUI::Connected(false, false); // display method (not needed)
 
 #ifdef VERSION
     AsyncWiFiSettings.info("ESPresense Version: " + String(VERSION));
-#endif
+#endif // build webportal and get the settings
     room = AsyncWiFiSettings.string("room", ESPMAC, "Room");
     auto wifiTimeout = AsyncWiFiSettings.integer("wifi_timeout", DEFAULT_WIFI_TIMEOUT, "Seconds to wait for WiFi before captive portal (-1 = forever)");
     auto portalTimeout = 1000UL * AsyncWiFiSettings.integer("portal_timeout", DEFAULT_PORTAL_TIMEOUT, "Seconds to wait in captive portal before rebooting");
@@ -161,12 +161,12 @@ void setupNetwork() {
     BleFingerprintCollection::absorption = AsyncWiFiSettings.floating("absorption", -100, 100, DEFAULT_ABSORPTION, "Factor used to account for absorption, reflection, or diffraction");
     BleFingerprintCollection::forgetMs = AsyncWiFiSettings.integer("forget_ms", 0, 3000000, DEFAULT_FORGET_MS, "Forget beacon if not seen for (in milliseconds)");
 
-    GUI::ConnectToWifi();
+    GUI::ConnectToWifi(); // led configuration part of portal
 
     AsyncWiFiSettings.heading("GPIO Sensors <a href='https://espresense.com/configuration/settings#gpio-sensors' target='_blank'>ℹ️</a>", false);
 
     BleFingerprintCollection::ConnectToWifi();
-    Motion::ConnectToWifi();
+    Motion::ConnectToWifi(); // Motion configuration part of portal
 
 #ifdef SENSORS
     DHT::ConnectToWifi();
@@ -187,13 +187,13 @@ void setupNetwork() {
 
     unsigned int connectProgress = 0;
     AsyncWiFiSettings.onWaitLoop = [&connectProgress]() {
-        GUI::Wifi(connectProgress++);
+        GUI::Wifi(connectProgress++); // led funk
         SerialImprov::Loop(true);
         return 50;
     };
     unsigned int portalProgress = 0;
     AsyncWiFiSettings.onPortalWaitLoop = [&portalProgress, portalTimeout]() {
-        GUI::Portal(portalProgress++);
+        GUI::Portal(portalProgress++); // led funk
         SerialImprov::Loop(false);
 
         if (millis() > portalTimeout)
@@ -204,7 +204,7 @@ void setupNetwork() {
     AsyncWiFiSettings.onHttpSetup = HttpWebServer::Init;
     AsyncWiFiSettings.hostname = "espresense-" + kebabify(room);
 
-    bool success = false;
+    bool success = false; // try to connect to wifi else restart
     if (ethernetType > 0) success = Network.connect(ethernetType, 20, AsyncWiFiSettings.hostname.c_str());
     if (!success && !AsyncWiFiSettings.connect(true, wifiTimeout))
         ESP.restart();
@@ -231,8 +231,8 @@ void setupNetwork() {
     Serial.printf("Init Free Mem:%d\n", ESP.getFreeHeap());
     GUI::SerialReport();
     Motion::SerialReport();
-    I2C::SerialReport();
 #ifdef SENSORS
+    I2C::SerialReport();
     DHT::SerialReport();
     BH1750::SerialReport();
     BME280::SerialReport();
@@ -263,14 +263,14 @@ void setupNetwork() {
     teleTopic = roomsTopic + "/telemetry";
     setTopic = roomsTopic + "/+/set";
     configTopic = CHANNEL + String("/settings/+/config");
-    AsyncWiFiSettings.httpSetup();
+    AsyncWiFiSettings.httpSetup(); // build and serve website
 }
 
 void onMqttConnect(bool sessionPresent) {
     xTimerStop(reconnectTimer, 0);
     mqttClient.subscribe("espresense/rooms/*/+/set", 1);
-    mqttClient.subscribe(setTopic.c_str(), 1);
-    mqttClient.subscribe(configTopic.c_str(), 1);
+    mqttClient.subscribe(setTopic.c_str(), 1); // setTopic = CHANNEL + "/rooms/" + id + "/+/set"
+    mqttClient.subscribe(configTopic.c_str(), 1); // configTopic = CHANNEL + "/rooms/" + id + "/settings/+/config"
     GUI::Connected(true, true);
 }
 
@@ -291,13 +291,13 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
 
     auto setPos = top.lastIndexOf("/set");
     auto configPos = top.lastIndexOf("/config");
-    if (configPos > 1) {
+    if (configPos > 1) { // if topic is "/config"
         auto idPos = top.lastIndexOf("/", configPos - 1);
         if (idPos < 0) goto skip;
         auto id = top.substring(idPos + 1, configPos);
         Serial.printf("%d MQTT  | Config %s: %s\n", xPortGetCoreID(), id.c_str(), pay.c_str());
-        BleFingerprintCollection::Config(id, pay);
-    } else if (setPos > 1) {
+        BleFingerprintCollection::Config(id, pay); // apply new config
+    } else if (setPos > 1) { // if topic is "/set"
         auto commandPos = top.lastIndexOf("/", setPos - 1);
         if (commandPos < 0) goto skip;
         auto command = top.substring(commandPos + 1, setPos);
@@ -307,18 +307,18 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
         if (command == "restart")
             ESP.restart();
         else if (command == "wifi-ssid" || command == "wifi-password")
-            spurt("/" + command, pay);
-        else if (GUI::Command(command, pay))
+            spurt("/" + command, pay); // update ssid || password config
+        else if (GUI::Command(command, pay)) // controle leds (not needed)
             ;
-        else if (Motion::Command(command, pay))
+        else if (Motion::Command(command, pay)) // set pir/radar timeout (not needed) (why two times?)
             ;
-        else if (BleFingerprintCollection::Command(command, pay))
+        else if (BleFingerprintCollection::Command(command, pay)) // update BleFingerprintCollection configs
             changed = true;
-        else if (Enrollment::Command(command, pay))
+        else if (Enrollment::Command(command, pay)) // set Enrollment::id
             changed = true;
-        else if (Updater::Command(command, pay))
+        else if (Updater::Command(command, pay)) // update updater configs  (not needed) (nice to have)
             changed = true;
-        else if (Motion::Command(command, pay))
+        else if (Motion::Command(command, pay)) // set pir/radar timeout (not needed) (why two times?)
             changed = true;
         if (changed) online = false;
     } else {
@@ -351,9 +351,9 @@ void reconnect(TimerHandle_t xTimer) {
 
 void connectToMqtt() {
     reconnectTimer = xTimerCreate("reconnectionTimer", pdMS_TO_TICKS(3000), pdTRUE, (void *)nullptr, reconnect);
-    mqttClient.onConnect(onMqttConnect);
-    mqttClient.onDisconnect(onMqttDisconnect);
-    mqttClient.onMessage(onMqttMessage);
+    mqttClient.onConnect(onMqttConnect); // on connection to server subscribe to topics (room, set, config)
+    mqttClient.onDisconnect(onMqttDisconnect); // on server disconnect, report disconnect and start reconnectTimer
+    mqttClient.onMessage(onMqttMessage); // on config/set message handle possible config change
     mqttClient.setClientId(AsyncWiFiSettings.hostname.c_str());
     mqttClient.setServer(mqttHost.c_str(), mqttPort);
     mqttClient.setWill(statusTopic.c_str(), 0, true, "offline");
@@ -364,7 +364,7 @@ void connectToMqtt() {
 bool reportDevice(BleFingerprint *f) {
     doc.clear();
     JsonObject obj = doc.to<JsonObject>();
-    if (!f->report(&obj))
+    if (!f->report(&obj)) // can fingerprint be reported, if true, fill (obj) with relevent fingerprint information
         return false;
 
     serializeJson(doc, buffer);
@@ -374,10 +374,10 @@ bool reportDevice(BleFingerprint *f) {
     for (int i = 0; i < 10; i++) {
         if (!mqttClient.connected())
             return false;
-
+        // try sending buffer with mqttclient if publishRooms = true
         if (!p1 && (!publishRooms || mqttClient.publish(roomsTopic.c_str(), 0, false, buffer)))
             p1 = true;
-
+        // try sending buffer with mqttclient if publishDevices = true
         if (!p2 && (!publishDevices || mqttClient.publish(devicesTopic.c_str(), 0, false, buffer)))
             p2 = true;
 
@@ -395,63 +395,63 @@ unsigned int totalFpQueried = 0;
 unsigned int totalFpReported = 0;
 
 void reportTask(void *parameter) {
-    connectToMqtt();
+    connectToMqtt(); // connect to mqtt server
 
     while (true) {
-        while (!mqttClient.connected())
+        while (!mqttClient.connected()) // ensure mqtt connection
             delay(1000);
 
-        yield();
-        auto copy = BleFingerprintCollection::GetCopy();
+        yield(); // let other tasks run
+        auto copy = BleFingerprintCollection::GetCopy(); // remove old fingerprints and get a copy of currently known fingerprints
 
         unsigned int count = 0;
-        for (auto &i : copy)
-            if (i->shouldCount())
+        for (auto &i : copy) // for all fingerprints
+            if (i->shouldCount()) // if fingerprint is valid
                 count++;
 
-        GUI::Count(count);
+        GUI::Count(count); // turn on count led (if count > 0) (not needed)
 
-        yield();
-        sendTelemetry(totalSeen, totalFpSeen, totalFpQueried, totalFpReported, count);
-        yield();
+        yield(); // let other tasks run
+        sendTelemetry(totalSeen, totalFpSeen, totalFpQueried, totalFpReported, count); // update topics, send discovery and sendt telemetry
+        yield(); // let other tasks run
 
         auto reported = 0;
         for (auto &f : copy) {
-            auto seen = f->getSeenCount();
+            auto seen = f->getSeenCount(); // how many times have we seen this device since last time
             if (seen) {
                 totalSeen += seen;
                 totalFpSeen++;
             }
-            if (reportDevice(f)) {
+            if (reportDevice(f)) { // wether fingerprint was reported to mqtt successfully
                 totalFpReported++;
                 reported++;
             }
-            yield();
+            yield(); // let other tasks run
         }
     }
 }
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     void onResult(BLEAdvertisedDevice *advertisedDevice) {
-        BleFingerprintCollection::Seen(advertisedDevice);
+        BleFingerprintCollection::Seen(advertisedDevice); // add to seen devices or update with latest info
     }
 };
 
 void scanTask(void *parameter) {
     NimBLEDevice::init("ESPresense");
     for (esp_ble_power_type_t i = ESP_BLE_PWR_TYPE_CONN_HDL0; i <= ESP_BLE_PWR_TYPE_CONN_HDL8; i = esp_ble_power_type_t((int)i + 1))
-        NimBLEDevice::setPower(ESP_PWR_LVL_P9, i);
-    Enrollment::Setup();
-    NimBLEDevice::setMTU(23);
+        NimBLEDevice::setPower(ESP_PWR_LVL_P9, i); // set all ble channels to +9dB power
+    Enrollment::Setup(); // create and start ble server
+    NimBLEDevice::setMTU(23); // set max MTU (The ATT Maximum Transmission Unit (MTU) is the maximum length of an ATT packet)
 
-    auto pBLEScan = NimBLEDevice::getScan();
+    auto pBLEScan = NimBLEDevice::getScan(); // setup ble scan
     pBLEScan->setInterval(BLE_SCAN_INTERVAL);
     pBLEScan->setWindow(BLE_SCAN_WINDOW);
     pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks(), true);
     pBLEScan->setActiveScan(false);
     pBLEScan->setDuplicateFilter(false);
     pBLEScan->setMaxResults(0);
-    if (!pBLEScan->start(0, nullptr, false))
+    if (!pBLEScan->start(0, nullptr, false)) // start continuous ble scan
         log_e("Error starting continuous ble scan");
 
     while (true) {
@@ -459,7 +459,7 @@ void scanTask(void *parameter) {
             if (f->query())
                 totalFpQueried++;
 
-        Enrollment::Loop();
+        Enrollment::Loop(); // ?
 
         if (!pBLEScan->isScanning()) {
             if (!pBLEScan->start(0, nullptr, true))
@@ -472,6 +472,7 @@ void scanTask(void *parameter) {
 }
 
 void setup() {
+    // setup serial
 #ifdef FAST_MONITOR
     Serial.begin(1500000);
 #else
@@ -483,23 +484,23 @@ void setup() {
     AXP192::Setup();
 #endif
 
-    GUI::Setup(true);
-    BleFingerprintCollection::Setup();
+    GUI::Setup(true); // info over serial and display
+    BleFingerprintCollection::Setup(); // initiate ble collector
 
 #ifdef VERBOSE
     esp_log_level_set("*", ESP_LOG_DEBUG);
 #else
     esp_log_level_set("*", ESP_LOG_ERROR);
 #endif
-    SPIFFS.begin(true);
-    setupNetwork();
-    Updater::Setup();
+    SPIFFS.begin(true); // create SPIF file system
+    setupNetwork(); // builds, serves and gets settings from configuration portal (web site)
+    Updater::Setup(); // update firmware (not needed) (nice to have)
 #if NTP
     setClock();
 #endif
-    GUI::Setup(false);
-    Motion::Setup();
-    Battery::Setup();
+    GUI::Setup(false); // setup led's
+    Motion::Setup(); // setup pir/radar sensor (not needed)
+    Battery::Setup(); // setup battery monetoring (not needed)
 #ifdef SENSORS
     DHT::Setup();
     I2C::Setup();
@@ -512,22 +513,24 @@ void setup() {
     SensirionSGP30::Setup();
     HX711::Setup();
 #endif
+    // scanTask(): starts and runs contionues ble scan, preserving fingerprint of nearby devices in BleFingerprintCollection
+    // reportTask(): 
     xTaskCreatePinnedToCore(scanTask, "scanTask", SCAN_TASK_STACK_SIZE, nullptr, 1, &scanTaskHandle, CONFIG_BT_NIMBLE_PINNED_TO_CORE);
     xTaskCreatePinnedToCore(reportTask, "reportTask", REPORT_TASK_STACK_SIZE, nullptr, 1, &reportTaskHandle, REPORT_PINNED_TO_CORE);
 }
 
 void loop() {
     static unsigned long lastSlowLoop = 0;
-    if (millis() - lastSlowLoop > 5000) {
+    if (millis() - lastSlowLoop > 5000) { // every 5 sec
         lastSlowLoop = millis();
-        auto freeHeap = ESP.getFreeHeap();
-        if (freeHeap < 20000) Serial.printf("Low memory: %u bytes free\n", freeHeap);
-        if (freeHeap > 70000) Updater::Loop();
+        auto freeHeap = ESP.getFreeHeap(); // get free heap size
+        if (freeHeap < 20000) Serial.printf("Low memory: %u bytes free\n", freeHeap); // warn low memory
+        if (freeHeap > 70000) Updater::Loop(); // try to update firmware (not needed)
     }
-    GUI::Loop();
-    Motion::Loop();
-    HttpWebServer::Loop();
-    SerialImprov::Loop(false);
+    GUI::Loop(); // update all led's (dose nothing) (not needed)
+    Motion::Loop(); // check pir/radar sensor for movment and report if so (not needed)
+    HttpWebServer::Loop(); // close connections if too many WebSocket are open
+    SerialImprov::Loop(false); // check for and handle possibol SerialImprov serial packet (dont know if needed)
 #if M5STICK
     AXP192::Loop();
 #endif

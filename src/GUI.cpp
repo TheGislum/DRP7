@@ -6,7 +6,7 @@
 #include "defaults.h"
 
 namespace GUI {
-void Setup(bool beforeWifi) {
+void Setup(bool beforeWifi) { // serial and screen?
     if (beforeWifi) {
         BleFingerprintCollection::onSeen = [](bool inprogress) {
             Seen(inprogress);
@@ -29,7 +29,7 @@ void Setup(bool beforeWifi) {
         BleFingerprintCollection::onCountDel = [](BleFingerprint *fingerprint) {
             Counting(fingerprint, false);
         };
-        Display::Setup();
+        Display::Setup(); // MD5 (maby ddisable)
     } else {
         LEDs::Setup();
     }
