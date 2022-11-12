@@ -2,8 +2,9 @@
 
 #include <AsyncMqttClient.h>
 #include <AsyncWiFiSettings.h>
-
+#ifdef GUI
 #include "GUI.h"
+#endif
 #include "defaults.h"
 #include "globals.h"
 #include "mqtt.h"
@@ -80,7 +81,9 @@ void Loop() {
     radarLoop();
     int motionValue = (lastRadarValue == HIGH || lastPirValue == HIGH) ? HIGH : LOW;
     if (lastMotionValue == motionValue) return;
+#ifdef GUI
     GUI::Motion(lastPirValue == HIGH, lastRadarValue == HIGH);
+#endif
     mqttClient.publish((roomsTopic + "/motion").c_str(), 0, true, motionValue == HIGH ? "ON" : "OFF");
     lastMotionValue = motionValue;
 }

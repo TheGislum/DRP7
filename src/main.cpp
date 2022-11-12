@@ -13,9 +13,15 @@ bool sendTelemetry(unsigned int totalSeen, unsigned int totalFpSeen, int unsigne
             && pub((roomsTopic + "/known_macs").c_str(), 0, true, BleFingerprintCollection::knownMacs.c_str())
             && pub((roomsTopic + "/known_irks").c_str(), 0, true, BleFingerprintCollection::knownIrks.c_str())
             && pub((roomsTopic + "/count_ids").c_str(), 0, true, BleFingerprintCollection::countIds.c_str())
+#ifdef UPDATER
             && Updater::SendOnline() // publish ota enabeld status (not needed) (nice to have)
+#endif
+#ifdef MONITOR
             && Motion::SendOnline() // publish pir/radar timeout (not needed)
+#endif
+#ifdef GUI
             && GUI::SendOnline() // publish led state (not needed)
+#endif
         ) {
             online = true;
             reconnectTries = 0;
@@ -35,10 +41,15 @@ bool sendTelemetry(unsigned int totalSeen, unsigned int totalFpSeen, int unsigne
 
             && sendDeleteDiscovery("switch", "Status LED")
             && sendDeleteDiscovery("switch", "Active Scan")
-
+#ifdef UPDATER
             && Updater::SendDiscovery()
+#endif
+#ifdef GUI
             && GUI::SendDiscovery()
+#endif
+#ifdef MONITOR
             && Motion::SendDiscovery()
+#endif
             && Enrollment::SendDiscovery()
             && Battery::SendDiscovery()
 #ifdef SENSORS
@@ -114,7 +125,9 @@ bool sendTelemetry(unsigned int totalSeen, unsigned int totalFpSeen, int unsigne
 void setupNetwork() {
     Serial.println("Setup network");
     WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+#ifdef GUI
     GUI::Connected(false, false); // display method (not needed)
+#endif
 
 #ifdef VERSION
     AsyncWiFiSettings.info("ESPresense Version: " + String(VERSION));
@@ -136,8 +149,9 @@ void setupNetwork() {
     publishDevices = AsyncWiFiSettings.checkbox("pub_devices", true, "Send to devices topic");
 
     AsyncWiFiSettings.heading("Updating <a href='https://espresense.com/configuration/settings#updating' target='_blank'>ℹ️</a>", false);
+#ifdef UPDATER
     Updater::ConnectToWifi();
-
+#endif
     AsyncWiFiSettings.heading("Scanning <a href='https://espresense.com/configuration/settings#scanning' target='_blank'>ℹ️</a>", false);
     BleFingerprintCollection::knownMacs = AsyncWiFiSettings.string("known_macs", "", "Known BLE mac addresses (no colons, space seperated)");
     BleFingerprintCollection::knownIrks = AsyncWiFiSettings.string("known_irks", "", "Known BLE identity resolving keys, should be 32 hex chars space seperated");
@@ -160,14 +174,15 @@ void setupNetwork() {
     BleFingerprintCollection::refRssi = AsyncWiFiSettings.integer("ref_rssi", -100, 100, DEFAULT_REF_RSSI, "Rssi expected from a 0dBm transmitter at 1 meter (NOT used for iBeacons or Eddystone)");
     BleFingerprintCollection::absorption = AsyncWiFiSettings.floating("absorption", -100, 100, DEFAULT_ABSORPTION, "Factor used to account for absorption, reflection, or diffraction");
     BleFingerprintCollection::forgetMs = AsyncWiFiSettings.integer("forget_ms", 0, 3000000, DEFAULT_FORGET_MS, "Forget beacon if not seen for (in milliseconds)");
-
+#ifdef GUI
     GUI::ConnectToWifi(); // led configuration part of portal
-
+#endif
     AsyncWiFiSettings.heading("GPIO Sensors <a href='https://espresense.com/configuration/settings#gpio-sensors' target='_blank'>ℹ️</a>", false);
 
     BleFingerprintCollection::ConnectToWifi();
+#ifdef MONITOR
     Motion::ConnectToWifi(); // Motion configuration part of portal
-
+#endif
 #ifdef SENSORS
     DHT::ConnectToWifi();
     I2C::ConnectToWifi();
@@ -187,13 +202,17 @@ void setupNetwork() {
 
     unsigned int connectProgress = 0;
     AsyncWiFiSettings.onWaitLoop = [&connectProgress]() {
+#ifdef GUI
         GUI::Wifi(connectProgress++); // led funk
+#endif
         SerialImprov::Loop(true);
         return 50;
     };
     unsigned int portalProgress = 0;
     AsyncWiFiSettings.onPortalWaitLoop = [&portalProgress, portalTimeout]() {
+#ifdef GUI        
         GUI::Portal(portalProgress++); // led funk
+#endif
         SerialImprov::Loop(false);
 
         if (millis() > portalTimeout)
@@ -208,9 +227,9 @@ void setupNetwork() {
     if (ethernetType > 0) success = Network.connect(ethernetType, 20, AsyncWiFiSettings.hostname.c_str());
     if (!success && !AsyncWiFiSettings.connect(true, wifiTimeout))
         ESP.restart();
-
+#ifdef GUI
     GUI::Connected(true, false);
-
+#endif
 #ifdef FIRMWARE
     Serial.println("Firmware:     " + String(FIRMWARE));
 #endif
@@ -229,8 +248,12 @@ void setupNetwork() {
     Serial.printf("Mqtt server:  %s:%d\n", mqttHost.c_str(), mqttPort);
     Serial.printf("Max Distance: %.2f\n", BleFingerprintCollection::maxDistance);
     Serial.printf("Init Free Mem:%d\n", ESP.getFreeHeap());
+#ifdef GUI
     GUI::SerialReport();
+#endif
+#ifdef MONITOR
     Motion::SerialReport();
+#endif
 #ifdef SENSORS
     I2C::SerialReport();
     DHT::SerialReport();
@@ -271,11 +294,15 @@ void onMqttConnect(bool sessionPresent) {
     mqttClient.subscribe("espresense/rooms/*/+/set", 1);
     mqttClient.subscribe(setTopic.c_str(), 1); // setTopic = CHANNEL + "/rooms/" + id + "/+/set"
     mqttClient.subscribe(configTopic.c_str(), 1); // configTopic = CHANNEL + "/rooms/" + id + "/settings/+/config"
+#ifdef GUI
     GUI::Connected(true, true);
+#endif
 }
 
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
+#ifdef GUI
     GUI::Connected(true, false);
+#endif
     Serial.printf("Disconnected from MQTT; reason %d\n", reason);
     xTimerStart(reconnectTimer, 0);
     online = false;
@@ -308,18 +335,26 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
             ESP.restart();
         else if (command == "wifi-ssid" || command == "wifi-password")
             spurt("/" + command, pay); // update ssid || password config
+#ifdef GUI
         else if (GUI::Command(command, pay)) // controle leds (not needed)
             ;
+#endif
+#ifdef MONITOR
         else if (Motion::Command(command, pay)) // set pir/radar timeout (not needed) (why two times?)
             ;
+#endif
         else if (BleFingerprintCollection::Command(command, pay)) // update BleFingerprintCollection configs
             changed = true;
         else if (Enrollment::Command(command, pay)) // set Enrollment::id
             changed = true;
+#ifdef UPDATER
         else if (Updater::Command(command, pay)) // update updater configs  (not needed) (nice to have)
             changed = true;
+#endif
+#ifdef MONITOR
         else if (Motion::Command(command, pay)) // set pir/radar timeout (not needed) (why two times?)
             changed = true;
+#endif
         if (changed) online = false;
     } else {
     skip:
@@ -408,9 +443,9 @@ void reportTask(void *parameter) {
         for (auto &i : copy) // for all fingerprints
             if (i->shouldCount()) // if fingerprint is valid
                 count++;
-
+#ifdef GUI
         GUI::Count(count); // turn on count led (if count > 0) (not needed)
-
+#endif
         yield(); // let other tasks run
         sendTelemetry(totalSeen, totalFpSeen, totalFpQueried, totalFpReported, count); // update topics, send discovery and sendt telemetry
         yield(); // let other tasks run
@@ -483,8 +518,9 @@ void setup() {
 #if M5STICK
     AXP192::Setup();
 #endif
-
+#ifdef GUI
     GUI::Setup(true); // info over serial and display
+#endif
     BleFingerprintCollection::Setup(); // initiate ble collector
 
 #ifdef VERBOSE
@@ -494,12 +530,18 @@ void setup() {
 #endif
     SPIFFS.begin(true); // create SPIF file system
     setupNetwork(); // builds, serves and gets settings from configuration portal (web site)
+#ifdef UPDATER
     Updater::Setup(); // update firmware (not needed) (nice to have)
+#endif
 #if NTP
     setClock();
 #endif
+#ifdef GUI
     GUI::Setup(false); // setup led's
+#endif
+#ifdef MONITOR
     Motion::Setup(); // setup pir/radar sensor (not needed)
+#endif
     Battery::Setup(); // setup battery monetoring (not needed)
 #ifdef SENSORS
     DHT::Setup();
@@ -525,10 +567,16 @@ void loop() {
         lastSlowLoop = millis();
         auto freeHeap = ESP.getFreeHeap(); // get free heap size
         if (freeHeap < 20000) Serial.printf("Low memory: %u bytes free\n", freeHeap); // warn low memory
+#ifdef UPDATER
         if (freeHeap > 70000) Updater::Loop(); // try to update firmware (not needed)
+#endif
     }
+#ifdef GUI    
     GUI::Loop(); // update all led's (dose nothing) (not needed)
+#endif
+#ifdef MONITOR
     Motion::Loop(); // check pir/radar sensor for movment and report if so (not needed)
+#endif
     HttpWebServer::Loop(); // close connections if too many WebSocket are open
     SerialImprov::Loop(false); // check for and handle possibol SerialImprov serial packet (dont know if needed)
 #if M5STICK

@@ -3,8 +3,9 @@
 #include <AsyncMqttClient.h>
 #include <AsyncWiFiSettings.h>
 #include <WS2812FX.h>
-
+#ifdef MONITOR
 #include "MotionSensors.h"
+#endif
 #include "defaults.h"
 #include "globals.h"
 #include "led/Addressable.h"

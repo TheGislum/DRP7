@@ -13,14 +13,20 @@
 #include "BleFingerprint.h"
 #include "BleFingerprintCollection.h"
 #include "Enrollment.h"
+#ifdef GUI
 #include "GUI.h"
+#endif
 #include "HttpReleaseUpdate.h"
 #include "HttpWebServer.h"
 #include "I2C.h"
+#ifdef MONITOR
 #include "MotionSensors.h"
+#endif
 #include "Network.h"
 #include "SerialImprov.h"
+#ifdef UPDATER
 #include "Updater.h"
+#endif
 #include "defaults.h"
 #include "globals.h"
 #include "mqtt.h"

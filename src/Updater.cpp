@@ -5,7 +5,9 @@
 #include <WiFiClientSecure.h>
 
 #include "AsyncWiFiSettings.h"
+#ifdef GUI
 #include "GUI.h"
+#endif
 #include "HttpReleaseUpdate.h"
 #include "HttpWebServer.h"
 #include "defaults.h"
@@ -86,16 +88,22 @@ void firmwareUpdate() {
         httpUpdate.onStart([](void) {
             autoUpdateAttempts++;
             updateStartedMillis = millis();
+#ifdef GUI
             GUI::Update(UPDATE_STARTED);
+#endif
         });
         httpUpdate.onEnd([](bool success) {
             if (success)
                 SPIFFS.remove("/update");
             updateStartedMillis = 0;
+#ifdef GUI
             GUI::Update(UPDATE_COMPLETE);
+#endif
         });
         httpUpdate.onProgress([](int progress, int total) {
+#ifdef GUI
             GUI::Update((progress / (total / 100)));
+#endif
         });
         auto ret = httpUpdate.update(client, updateUrl.startsWith("http") ? updateUrl : getFirmwareUrl());
         switch (ret) {
@@ -117,14 +125,20 @@ void configureOTA(void) {
     ArduinoOTA
         .onStart([]() {
             updateStartedMillis = millis();
+#ifdef GUI
             GUI::Update(UPDATE_STARTED);
+#endif
         })
         .onEnd([]() {
             updateStartedMillis = 0;
+#ifdef GUI
             GUI::Update(UPDATE_COMPLETE);
+#endif
         })
         .onProgress([](unsigned int progress, unsigned int total) {
+#ifdef GUI
             GUI::Update((progress / (total / 100)));
+#endif
         })
         .onError([](ota_error_t error) {
             Serial.printf("Error[%u]: ", error);
