@@ -16,7 +16,7 @@ bool sendTelemetry(unsigned int totalSeen, unsigned int totalFpSeen, int unsigne
 #ifdef UPDATER
             && Updater::SendOnline() // publish ota enabeld status (not needed) (nice to have)
 #endif
-#ifdef MONITOR
+#ifdef MOTION
             && Motion::SendOnline() // publish pir/radar timeout (not needed)
 #endif
 #ifdef GUI
@@ -47,7 +47,7 @@ bool sendTelemetry(unsigned int totalSeen, unsigned int totalFpSeen, int unsigne
 #ifdef GUI
             && GUI::SendDiscovery()
 #endif
-#ifdef MONITOR
+#ifdef MOTION
             && Motion::SendDiscovery()
 #endif
             && Enrollment::SendDiscovery()
@@ -180,7 +180,7 @@ void setupNetwork() {
     AsyncWiFiSettings.heading("GPIO Sensors <a href='https://espresense.com/configuration/settings#gpio-sensors' target='_blank'>ℹ️</a>", false);
 
     BleFingerprintCollection::ConnectToWifi();
-#ifdef MONITOR
+#ifdef MOTION
     Motion::ConnectToWifi(); // Motion configuration part of portal
 #endif
 #ifdef SENSORS
@@ -251,7 +251,7 @@ void setupNetwork() {
 #ifdef GUI
     GUI::SerialReport();
 #endif
-#ifdef MONITOR
+#ifdef MOTION
     Motion::SerialReport();
 #endif
 #ifdef SENSORS
@@ -339,7 +339,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
         else if (GUI::Command(command, pay)) // controle leds (not needed)
             ;
 #endif
-#ifdef MONITOR
+#ifdef MOTION
         else if (Motion::Command(command, pay)) // set pir/radar timeout (not needed) (why two times?)
             ;
 #endif
@@ -351,7 +351,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
         else if (Updater::Command(command, pay)) // update updater configs  (not needed) (nice to have)
             changed = true;
 #endif
-#ifdef MONITOR
+#ifdef MOTION
         else if (Motion::Command(command, pay)) // set pir/radar timeout (not needed) (why two times?)
             changed = true;
 #endif
@@ -539,7 +539,7 @@ void setup() {
 #ifdef GUI
     GUI::Setup(false); // setup led's
 #endif
-#ifdef MONITOR
+#ifdef MOTION
     Motion::Setup(); // setup pir/radar sensor (not needed)
 #endif
     Battery::Setup(); // setup battery monetoring (not needed)
@@ -574,7 +574,7 @@ void loop() {
 #ifdef GUI    
     GUI::Loop(); // update all led's (dose nothing) (not needed)
 #endif
-#ifdef MONITOR
+#ifdef MOTION
     Motion::Loop(); // check pir/radar sensor for movment and report if so (not needed)
 #endif
     HttpWebServer::Loop(); // close connections if too many WebSocket are open

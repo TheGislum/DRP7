@@ -19,7 +19,7 @@
 #include "HttpReleaseUpdate.h"
 #include "HttpWebServer.h"
 #include "I2C.h"
-#ifdef MONITOR
+#ifdef MOTION
 #include "MotionSensors.h"
 #endif
 #include "Network.h"
