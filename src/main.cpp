@@ -121,7 +121,7 @@ bool sendTelemetry(unsigned int totalSeen, unsigned int totalFpSeen, int unsigne
     log_e("Error after 10 tries sending telemetry (%d times since boot)", teleFails);
     return false;
 }
-
+#ifdef WEBPORTAL
 void setupNetwork() {
     Serial.println("Setup network");
     WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
@@ -288,7 +288,90 @@ void setupNetwork() {
     configTopic = CHANNEL + String("/settings/+/config");
     AsyncWiFiSettings.httpSetup(); // build and serve website
 }
+#else
+void setupNetwork() {
+    Serial.println("Setup network");
+    WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
 
+    room = ESPMAC;
+
+    mqttHost = DEFAULT_MQTT_HOST; //mqtt_host (Server)
+    mqttPort = DEFAULT_MQTT_PORT; //mqtt_port (Port)
+    mqttUser = DEFAULT_MQTT_USER; //mqtt_user (Username)
+    mqttPass = DEFAULT_MQTT_PASSWORD; //mqtt_pass (Password)
+    discovery = false;
+    publishTele = true;
+    publishRooms = true;
+    publishDevices = false;
+
+    BleFingerprintCollection::knownMacs = "";
+    BleFingerprintCollection::knownIrks = "";
+    BleFingerprintCollection::query = DEFAULT_QUERY;
+
+    BleFingerprintCollection::countIds = "";
+    BleFingerprintCollection::countEnter = 2; //Start counting devices less than distance (in meters)
+    BleFingerprintCollection::countExit = 4; //Stop counting devices greater than distance (in meters)
+    BleFingerprintCollection::countMs = 30000;
+
+    BleFingerprintCollection::include = DEFAULT_INCLUDE;
+    BleFingerprintCollection::exclude = DEFAULT_EXCLUDE;
+    BleFingerprintCollection::maxDistance = DEFAULT_MAX_DISTANCE; //Maximum distance to report (in meters)
+    BleFingerprintCollection::skipDistance = DEFAULT_SKIP_DISTANCE; //Report early if beacon has moved more than this distance (in meters)
+    BleFingerprintCollection::skipMs = DEFAULT_SKIP_MS; //Skip reporting if message age is less that this (in milliseconds)
+
+    BleFingerprintCollection::refRssi = DEFAULT_REF_RSSI; //Rssi expected from a 0dBm transmitter at 1 meter (NOT used for iBeacons or Eddystone)
+    BleFingerprintCollection::absorption = DEFAULT_ABSORPTION; // Factor used to account for absorption, reflection, or diffraction
+    BleFingerprintCollection::forgetMs = DEFAULT_FORGET_MS; //Forget beacon if not seen for (in milliseconds)
+
+    BleFingerprintCollection::ConnectToWifi();
+
+    // const String hostname = "espresense-" + kebabify(room);
+    // int ethernetType = 0;
+
+    bool success = false; // try to connect to wifi else restart
+    // if (ethernetType > 0) success = Network.connect(ethernetType, 20, hostname.c_str());
+    if (!success && !AsyncWiFiSettings.connect(false, DEFAULT_WIFI_TIMEOUT))
+        ESP.restart();
+
+#ifdef FIRMWARE
+    Serial.println("Firmware:     " + String(FIRMWARE));
+#endif
+#ifdef VERSION
+    Serial.println("Version:      " + String(VERSION));
+#endif
+    Serial.printf("WiFi BSSID:   %s (channel=%d rssi=%d)\n", WiFi.BSSIDstr().c_str(), WiFi.channel(), WiFi.RSSI());
+    Serial.print("IP address:   ");
+    Serial.println(Network.localIP());
+    Serial.print("DNS address:  ");
+    Serial.println(Network.dnsIP());
+    Serial.print("Hostname:     ");
+    Serial.println(Network.getHostname());
+    Serial.print("Room:         ");
+    Serial.println(room);
+    Serial.printf("Mqtt server:  %s:%d\n", mqttHost.c_str(), mqttPort);
+    Serial.printf("Max Distance: %.2f\n", BleFingerprintCollection::maxDistance);
+    Serial.printf("Init Free Mem:%d\n", ESP.getFreeHeap());
+    Serial.print("Query:        ");
+    Serial.println(BleFingerprintCollection::query);
+    Serial.print("Include:      ");
+    Serial.println(BleFingerprintCollection::include);
+    Serial.print("Exclude:      ");
+    Serial.println(BleFingerprintCollection::exclude);
+    Serial.print("Known Macs:   ");
+    Serial.println(BleFingerprintCollection::knownMacs);
+    Serial.print("Count Ids:    ");
+    Serial.println(BleFingerprintCollection::countIds);
+    Serial.println();
+
+    localIp = Network.localIP().toString();
+    id = slugify(room);
+    roomsTopic = CHANNEL + String("/rooms/") + id;
+    statusTopic = roomsTopic + "/status";
+    teleTopic = roomsTopic + "/telemetry";
+    setTopic = roomsTopic + "/+/set";
+    configTopic = CHANNEL + String("/settings/+/config");
+}
+#endif
 void onMqttConnect(bool sessionPresent) {
     xTimerStop(reconnectTimer, 0);
     mqttClient.subscribe("espresense/rooms/*/+/set", 1);
