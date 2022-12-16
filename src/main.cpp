@@ -121,6 +121,14 @@ bool sendTelemetry(unsigned int totalSeen, unsigned int totalFpSeen, int unsigne
     log_e("Error after 10 tries sending telemetry (%d times since boot)", teleFails);
     return false;
 }
+
+String fsRead(const String &fn) {
+    File f = SPIFFS.open(fn, "r");
+    String r = f.readString();
+    f.close();
+    return r;
+}
+
 #ifdef WEBPORTAL
 void setupNetwork() {
     Serial.println("Setup network");
@@ -293,12 +301,18 @@ void setupNetwork() {
     Serial.println("Setup network");
     WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
 
-    room = ESPMAC;
+    String roomName = fsRead("/room_name");
+    String mqHost = fsRead("/mqtt_host");
+    String mqPort = fsRead("/mqtt_port");
+    String mqUser = fsRead("/mqtt_user");
+    String mqPass = fsRead("/mqtt_pass");
 
-    mqttHost = DEFAULT_MQTT_HOST; //mqtt_host (Server)
-    mqttPort = DEFAULT_MQTT_PORT; //mqtt_port (Port)
-    mqttUser = DEFAULT_MQTT_USER; //mqtt_user (Username)
-    mqttPass = DEFAULT_MQTT_PASSWORD; //mqtt_pass (Password)
+    room = roomName.length() == 0 ? ESPMAC : roomName;
+
+    mqttHost = mqHost.length() == 0 ? DEFAULT_MQTT_HOST : mqHost; //mqtt_host (Server)
+    mqttPort = mqPort.length() == 0 ? DEFAULT_MQTT_PORT : (uint16_t) mqPort.toInt(); //mqtt_port (Port)
+    mqttUser = mqUser.length() == 0 ? DEFAULT_MQTT_USER : mqUser; //mqtt_user (Username)
+    mqttPass = mqPass.length() == 0 ? DEFAULT_MQTT_PASSWORD : mqPass; //mqtt_pass (Password)
     discovery = false;
     publishTele = true;
     publishRooms = true;
